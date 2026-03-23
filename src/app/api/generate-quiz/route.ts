@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const pdfFile = formData.get('pdfFile')
     const customInstructions = formData.get('customInstructions') as string
+    const numQuestionsParam = formData.get('numQuestions')
+    const numQuestionsFromForm = numQuestionsParam ? parseInt(numQuestionsParam as string) : null
 
     // Validate PDF file
     if (!pdfFile || !(pdfFile instanceof File)) {
@@ -122,7 +124,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate quiz using AI (default to local AI if no API key configured)
-    const quiz = await generateQuizWithAI(processedText, customInstructions)
+    // Parse custom instructions for number of questions and question range
+    const parsedInstructions = parseCustomInstructions(customInstructions)
+    // Override numQuestions from form if provided
+    if (numQuestionsFromForm && numQuestionsFromForm > 0) {
+      parsedInstructions.numQuestions = Math.min(Math.max(numQuestionsFromForm, 1), 100)
+    }
+    const quiz = await generateQuizWithAI(processedText, customInstructions, parsedInstructions)
 
     return NextResponse.json({
       success: true,
@@ -140,46 +148,68 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function generateQuizWithAI(pdfText: string, customInstructions?: string): Promise<QuizQuestion[]> {
+async function generateQuizWithAI(pdfText: string, customInstructions?: string, parsedInstructions?: ParsedInstructions): Promise<QuizQuestion[]> {
+  // Use parsedInstructions if provided, otherwise parse from customInstructions
+  const parsed = parsedInstructions || parseCustomInstructions(customInstructions)
+  
   // If local AI is enabled or no API key available, use rule-based generation
   if (USE_LOCAL_AI || !AI_API_KEY) {
-    return generateQuizLocally(pdfText, customInstructions)
+    return generateQuizLocally(pdfText, customInstructions, parsed.numQuestions)
   }
 
   // Build the prompt for the AI with enhanced instructions
-  const instructions = customInstructions 
+  const extraInstructions = customInstructions 
     ? `Instrucțiuni suplimentare: ${customInstructions}\n\n`
     : ''
 
-  const prompt = `Ești un expert în crearea de teste grilă. Transformă următorul text într-un test grilă în limba română.
+  const prompt = `Ești un expert în crearea de teste grilă. Transformă următorul text din PDF într-un test grilă în limba română.
 
-${instructions}Text extras din PDF:
+${extraInstructions}Text extras din PDF (analizează cu ATENŢIE fiecare porţiune):
 "${pdfText}"
 
-Cerințe stricte:
-1. Generează între 5 și 15 întrebări relevante bazate pe text (în funcție de lungimea textului)
-2. Fiecare întrebare trebuie să aibă EXACT 4 variante de răspuns (A, B, C, D)
-3. Doar un singur răspuns este corect
-4. Răspunsurile trebuie să fie plauzibile, diverse și bine echilibrate
-5. Evită întrebările cu răspunsuri evidente sau triviale
-6. Formulează întrebările clar, concis și profesionist
-7. Asigură-te că variantele de răspuns sunt de lungimi similare
-8. Returnează DOAR JSON-ul valid, fără explicații suplimentare
+═══════════════════════════════════════════════════════════════
+REGULI STRICTE - TREBUIE RESPECTATE OBLIGATORIU:
+═══════════════════════════════════════════════════════════════
+1. CRITICAL: Generează EXACT ${parsed.numQuestions} întrebări. NUMĂRUL TREBUIE SĂ FIEXACTĂ.
+2. CRITICAL: Toate întrebările și răspunsurile trebuie să fie bazate EXCLUSIV pe informațiile din PDF. NU adăuga informații din cunoștințele tale generale.
+3. Dacă PDF-ul conține întrebări numerotate (ex: întrebarea 1, întrebarea 2, ... până la 288), concentrezi-te pe intervalul specificat: ${parsed.questionRange || 'toate întrebările'}.
+4. Fiecare întrebare trebuie să aibă EXACT 4 variante de răspuns (A, B, C, D)
+5. Doar un singur răspuns este corect
+6. Răspunsurile trebuie să fie plauzibile, diverse și bine echilibrate
+7. Evită întrebările cu răspunsuri evidente sau triviale
+8. Formulează întrebările clar, concis și profesionist
+9. Asigură-te că variantele de răspuns sunt de lungimi similare
+10. Returnează DOAR JSON-ul valid, fără explicații suplimentare
+
+${parsed.questionRange ? `═══════════════════════════════════════════════════════════════
+NOTĂ SPECIALĂ PRIVIND INTERVALUL DE ÎNTREBĂRI:
+PDF-ul conține întrebări numerotate. Trebuie să:
+- Analizezi DOAR întrebările din intervalul ${parsed.questionRange}
+- Creezi întrebări noi bazate pe conținutul întrebărilor din acel interval
+- Nu inventa informații care nu sunt prezente în PDF
+═══════════════════════════════════════════════════════════════
+` : ''}CRITICAL - NU ADĂUGA INFORMAȚII EXTERNE:
+- Nu folosi cunoștințe generale care nu sunt în PDF
+- Nu inventa termeni, definiții sau concepte
+- Nu adăuga exemple din afara textului
+- Fiecare răspuns trebuie să fie verificabil din PDF
 
 Reguli pentru generare:
 - Analizează textul complet înainte de a genera întrebări
-- Creează întrebări care testează înțelegerea conceptelor cheie
+- Creează întrebări care testează înțelegerea conceptelor cheie din PDF
 - Evită întrebările care pot fi răspunse fără citirea textului
-- Asigură-te că răspunsurile incorecte sunt plauzibile
+- Asigură-te că răspunsurile incorecte sunt bazate pe textul PDF
 - Nu folosi cuvinte-cheie din întrebare în răspunsul corect
 - Diverse tipuri de întrebări: definiții, exemple, aplicații, implicații
 - Distribuie întrebările uniform pe tot parcursul textului
 - Asigură-te că fiecare întrebare este independentă
 
+${parsed.questionRange ? `NOTĂ SPECIALĂ: Analizează și generează întrebări pentru intervalul de întrebări: ${parsed.questionRange}. Dacă textul PDF conține întrebări numerotate (ex: 1-288), concentrează-te pe acel interval specific.` : ''}
+
 Format JSON strict:
 [
   {
-    "question": "Întrebare clară și relevantă",
+    "question": "Întrebare clară și relevantă bazată pe PDF",
     "options": [
       "A. Varianta de răspuns 1",
       "B. Varianta de răspuns 2", 
@@ -194,19 +224,23 @@ Important: Respecă EXACT formatul JSON de mai sus. Nu adăuga comentarii sau te
 
 Asigură-te că:
 - Toate întrebările sunt în limba română
+- Toate informațiile din întrebări și răspunsuri sunt extrase DOAR din PDF
 - Răspunsurile sunt diverse și nu evidente
 - Întrebările acoperă diferite aspecte ale textului
 - Variantele de răspuns sunt de lungimi similare
 - JSON-ul este valid și poate fi parsat fără erori
 
 Dacă utilizatorul specifică:
-- "Generează întrebări ușoare" → Creează întrebări de bază, concepte fundamentale
-- "Generează întrebări dificile" → Creează întrebări complexe, analiză profundă
-- "Concentrează-te pe definiții" → Prioritizează întrebări de definire și terminologie
-- "Concentrează-te pe exemple" → Creează întrebări bazate pe aplicații practice
+- "Generează întrebări ușoare" → Creează întrebări de bază, concepte fundamentale din PDF
+- "Generează întrebări dificile" → Creează întrebări complexe, analiză profundă a textului
+- "Concentrează-te pe definiții" → Prioritizează întrebări de definire și terminologie din PDF
+- "Concentrează-te pe exemple" → Creează întrebări bazate pe aplicații practice din PDF
 - "Focusează-te pe [subiect specific]" → Prioritizează acel subiect în generare
+- "intrebari 1-288" sau "questions 1-288" → Concentrează-te pe acel interval din PDF
 
-IMPORTANT: Respectă EXACT instrucțiunile utilizatorului. Dacă specifică un anumit tip de întrebări sau un anumit subiect, concentrează-te exclusiv pe acel aspect. Nu ignora cerințele utilizatorului.`
+IMPORTANT: Respectă EXACT instrucțiunile utilizatorului. Dacă specifică un anumit tip de întrebări sau un anumit subiect, concentrează-te exclusiv pe acel aspect. Nu ignora cerințele utilizatorului.
+
+NU folosi cunoștințe generale care nu sunt în PDF. Toate întrebările trebuie să fie bazate STRICT pe textul furnizat.`
 
   // Enhanced prompt with better instruction following
   const enhancedPrompt = `${prompt}
@@ -297,7 +331,7 @@ Acum generează testul grilă:`
   }
 }
 
-function generateQuizLocally(pdfText: string, customInstructions?: string): QuizQuestion[] {
+function generateQuizLocally(pdfText: string, customInstructions?: string, numQuestions: number = 10): QuizQuestion[] {
   try {
     // Simple text analysis for question generation
     const sentences = pdfText.split(/[.!?]+/).filter(s => s.trim().length > 10)
@@ -306,8 +340,12 @@ function generateQuizLocally(pdfText: string, customInstructions?: string): Quiz
     const quiz: QuizQuestion[] = []
     const usedQuestions = new Set<string>()
     
+    // Calculate how many questions to generate based on numQuestions (up to 100)
+    const targetQuestions = Math.min(numQuestions, 100)
+    const sentencesToUse = Math.min(sentences.length, targetQuestions * 3) // Need more sentences for variety
+    
     // Generate questions based on text analysis
-    for (let i = 0; i < Math.min(10, sentences.length); i++) {
+    for (let i = 0; i < sentencesToUse; i++) {
       const sentence = sentences[i].trim()
       if (sentence.length < 20 || usedQuestions.has(sentence)) continue
       
@@ -317,7 +355,7 @@ function generateQuizLocally(pdfText: string, customInstructions?: string): Quiz
       const keyTerms = extractKeyTerms(sentence)
       const question = generateQuestionFromSentence(sentence, customInstructions)
       
-      if (question && quiz.length < 5) {
+      if (question && quiz.length < targetQuestions) {
         const options = generateOptions(keyTerms, sentence)
         quiz.push({
           question: question,
@@ -325,15 +363,17 @@ function generateQuizLocally(pdfText: string, customInstructions?: string): Quiz
           correctAnswer: "A"
         })
       }
+      
+      if (quiz.length >= targetQuestions) break
     }
     
     // If we don't have enough questions, use fallback
     if (quiz.length < 5) {
-      const additionalQuestions = generateAdditionalQuestions(5 - quiz.length)
+      const additionalQuestions = generateAdditionalQuestions(Math.max(5, targetQuestions) - quiz.length)
       quiz.push(...additionalQuestions)
     }
     
-    return quiz
+    return quiz.slice(0, targetQuestions)
   } catch (error) {
     console.error('Eroare la generarea locală:', error)
     return generateFallbackQuiz()
@@ -492,10 +532,12 @@ function parseQuizFromResponse(responseText: string): QuizQuestion[] {
       }
     }
 
-    // Ensure we have at least 5 questions
-    if (quiz.length < 5) {
+    // Ensure we have at least 5 questions but also respect the requested number
+    // Default to at least 5 if we don't have enough, but try to get as many as possible
+    const minQuestions = 5
+    if (quiz.length < minQuestions) {
       // Generate additional questions to reach minimum
-      const additionalQuestions = generateAdditionalQuestions(5 - quiz.length)
+      const additionalQuestions = generateAdditionalQuestions(minQuestions - quiz.length)
       quiz.push(...additionalQuestions)
     }
 
@@ -556,4 +598,74 @@ function generateFallbackQuiz(): QuizQuestion[] {
       correctAnswer: "B"
     }
   ]
+}
+
+// Parse custom instructions to extract number of questions and question range
+interface ParsedInstructions {
+  numQuestions: number
+  questionRange: string | null
+}
+
+function parseCustomInstructions(instructions?: string): ParsedInstructions {
+  const result: ParsedInstructions = {
+    numQuestions: 10, // Default number of questions
+    questionRange: null
+  }
+  
+  if (!instructions) return result
+  
+  const lowerInstructions = instructions.toLowerCase()
+  
+  // Extract number of questions - look for patterns like "50 intrebari", "100 questions", etc.
+  const numberMatch = lowerInstructions.match(/(\d+)\s*(intrebari|questions|inrebari|intrebări)/)
+  if (numberMatch) {
+    const num = parseInt(numberMatch[1])
+    result.numQuestions = Math.min(Math.max(num, 1), 100) // Limit between 1-100
+  }
+  
+  // Also check for just a number followed by these words
+  const numOnlyMatch = lowerInstructions.match(/(\d+)\s*(?:intrebari|questions|inrebari|intrebări)\s*(?:din|from)?\s*(\d+)?/)
+  if (numOnlyMatch && !numberMatch) {
+    const num = parseInt(numOnlyMatch[1])
+    result.numQuestions = Math.min(Math.max(num, 1), 100)
+  }
+  
+  // Check for explicit number at start (e.g., "50 intrebari" or "50 questions")
+  const explicitNum = lowerInstructions.match(/^(\d+)\s+(intrebari|questions|inrebari|intrebări)/)
+  if (explicitNum) {
+    const num = parseInt(explicitNum[1])
+    result.numQuestions = Math.min(Math.max(num, 1), 100)
+  }
+  
+  // Extract question range - look for patterns like "1-288", "intrebari 1-288", etc.
+  const rangeMatch = lowerInstructions.match(/(intrebari|questions|inrebari|intrebări)\s*(\d+)\s*-\s*(\d+)/)
+  if (rangeMatch) {
+    result.questionRange = `${rangeMatch[2]}-${rangeMatch[3]}`
+  }
+  
+  // Also check for just a range pattern
+  const simpleRangeMatch = lowerInstructions.match(/(\d+)\s*-\s*(\d+)/)
+  if (simpleRangeMatch && !rangeMatch) {
+    result.questionRange = `${simpleRangeMatch[1]}-${simpleRangeMatch[2]}`
+  }
+
+  // Check for "intrebarea X-Y" pattern
+  const intrebareaRangeMatch = lowerInstructions.match(/intrebarea\s+(\d+)\s*-\s*(\d+)/)
+  if (intrebareaRangeMatch) {
+    result.questionRange = `${intrebareaRangeMatch[1]}-${intrebareaRangeMatch[2]}`
+  }
+
+  // Check for "from X to Y" pattern
+  const fromToMatch = lowerInstructions.match(/(from|din|de la)\s+(\d+)\s+(to|pana la|la)\s+(\d+)/)
+  if (fromToMatch) {
+    result.questionRange = `${fromToMatch[2]}-${fromToMatch[4]}`
+  }
+
+  // Check for specific range like "questions 1 to 288"
+  const questionsToMatch = lowerInstructions.match(/(\d+)\s+(to|pana|until)\s+(\d+)/)
+  if (questionsToMatch && !result.questionRange) {
+    result.questionRange = `${questionsToMatch[1]}-${questionsToMatch[3]}`
+  }
+  
+  return result
 }

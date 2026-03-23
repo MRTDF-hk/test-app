@@ -27,6 +27,7 @@ const formSchema = z.object({
     })
     .optional(),
   customInstructions: z.string().optional(),
+  numQuestions: z.coerce.number().min(1).max(100).default(10),
 })
 
 interface Question {
@@ -79,7 +80,7 @@ export default function Home() {
     setStatistics(getStatistics())
   }, [appMode])
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
     setIsProcessing(true)
     setError(null)
     
@@ -108,6 +109,7 @@ export default function Home() {
       if (data.customInstructions) {
         formData.append('customInstructions', data.customInstructions)
       }
+      formData.append('numQuestions', String(data.numQuestions || 10))
 
       const response = await fetch('/api/generate-quiz', {
         method: 'POST',
@@ -601,12 +603,33 @@ function UploadScreen({
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Număr de întrebări
+                </label>
+                <input
+                  type="number"
+                  {...register('numQuestions')}
+                  min={1}
+                  max={100}
+                  defaultValue={10}
+                  className="w-full p-4 border border-slate-600 rounded-lg bg-slate-700/50 text-slate-200 focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Introduceți un număr între 1 și 100
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
                   Instrucțiuni (opțional)
                 </label>
                 <textarea
                   {...register('customInstructions')}
-                  rows={3}
-                  placeholder="Ex: Generează întrebări ușoare, Concentrează-te pe definiții"
+                  rows={4}
+                  placeholder="Exemple:
+• '100 intrebari' - generează 100 de întrebări
+• 'intrebari 1-288' - folosește doar întrebările 1-288 din PDF
+• '50 intrebari din 1-100' - 50 întrebări din primele 100
+• 'Generează întrebări ușoare' - nivel ușor"
                   className="w-full p-4 border border-slate-600 rounded-lg resize-none bg-slate-700/50 text-slate-200 placeholder-slate-400 focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
                 />
               </div>
