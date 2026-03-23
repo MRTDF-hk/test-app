@@ -1,5 +1,5 @@
 // Storage Service - Local storage for user progress
-// Works in browser and can be adapted for serverless
+// Works in browser and can be adapted for serverlessx
 
 export interface UserProgress {
   id: string

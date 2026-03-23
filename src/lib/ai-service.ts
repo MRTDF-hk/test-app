@@ -104,7 +104,7 @@ function generateDetailedExplanation(
 ): string {
   const questionLower = question.toLowerCase()
   
-  // Determine question type
+
   let questionType = 'general'
   for (const [type, patterns] of Object.entries(TOPIC_PATTERNS)) {
     if (patterns.some(p => questionLower.includes(p))) {
