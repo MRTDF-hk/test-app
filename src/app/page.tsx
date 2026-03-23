@@ -276,18 +276,31 @@ function QuizComponent({
                 const shouldShowIncorrect = showAnswers[questionIndex] && isSelected && !isCorrect
 
                 let bgColor = 'bg-white'
-                if (shouldShowCorrect) bgColor = 'bg-green-100 border-green-300'
-                if (shouldShowIncorrect) bgColor = 'bg-red-100 border-red-300'
-                if (isSelected && !showAnswers[questionIndex]) bgColor = 'bg-blue-50 border-blue-300'
+                let textColor = 'text-gray-900'
+                let borderColor = 'border-gray-200'
+                
+                if (shouldShowCorrect) {
+                  bgColor = 'bg-green-500'
+                  textColor = 'text-white'
+                  borderColor = 'border-green-600'
+                } else if (shouldShowIncorrect) {
+                  bgColor = 'bg-red-100'
+                  textColor = 'text-red-900'
+                  borderColor = 'border-red-300'
+                } else if (isSelected && !showAnswers[questionIndex]) {
+                  bgColor = 'bg-blue-50'
+                  textColor = 'text-blue-900'
+                  borderColor = 'border-blue-300'
+                }
 
                 return (
                   <button
                     key={optionIndex}
                     onClick={() => handleAnswer(questionIndex, option)}
                     disabled={showAnswers[questionIndex]}
-                    className={`p-3 text-left rounded-lg border-2 transition-all duration-200 hover:shadow-md ${bgColor}`}
+                    className={`p-3 text-left rounded-lg border-2 transition-all duration-200 hover:shadow-md ${bgColor} ${textColor} ${borderColor} hover:scale-105`}
                   >
-                    <span className="font-medium">{String.fromCharCode(65 + optionIndex)}.</span>{' '}
+                    <span className="font-bold">{String.fromCharCode(65 + optionIndex)}.</span>{' '}
                     {option}
                   </button>
                 )

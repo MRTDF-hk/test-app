@@ -146,7 +146,7 @@ async function generateQuizWithAI(pdfText: string, customInstructions?: string):
     return generateQuizLocally(pdfText, customInstructions)
   }
 
-  // Build the prompt for the AI with improved instructions
+  // Build the prompt for the AI with enhanced instructions
   const instructions = customInstructions 
     ? `Instrucțiuni suplimentare: ${customInstructions}\n\n`
     : ''
@@ -160,11 +160,19 @@ Cerințe stricte:
 1. Generează MINIM 5 întrebări relevante bazate pe text
 2. Fiecare întrebare trebuie să aibă EXACT 4 variante de răspuns (A, B, C, D)
 3. Doar un singur răspuns este corect
-4. Răspunsurile trebuie să fie plauzibile și bine echilibrate
+4. Răspunsurile trebuie să fie plauzibile, diverse și bine echilibrate
 5. Evită întrebările cu răspunsuri evidente sau triviale
-6. Formulează întrebările clar și concis
+6. Formulează întrebările clar, concis și profesionist
 7. Asigură-te că variantele de răspuns sunt de lungimi similare
 8. Returnează DOAR JSON-ul valid, fără explicații suplimentare
+
+Reguli pentru generare:
+- Analizează textul complet înainte de a genera întrebări
+- Creează întrebări care testează înțelegerea conceptelor cheie
+- Evită întrebările care pot fi răspunse fără citirea textului
+- Asigură-te că răspunsurile incorecte sunt plauzibile
+- Nu folosi cuvinte-cheie din întrebare în răspunsul corect
+- Diverse tipuri de întrebări: definiții, exemple, aplicații, implicații
 
 Format JSON strict:
 [
@@ -187,14 +195,21 @@ Asigură-te că:
 - Răspunsurile sunt diverse și nu evidente
 - Întrebările acoperă diferite aspecte ale textului
 - Variantele de răspuns sunt de lungimi similare
-- JSON-ul este valid și poate fi parsat fără erori`
+- JSON-ul este valid și poate fi parsat fără erori
+
+Dacă utilizatorul specifică:
+- "Generează întrebări ușoare" → Creează întrebări de bază, concepte fundamentale
+- "Generează întrebări dificile" → Creează întrebări complexe, analiză profundă
+- "Concentrează-te pe definiții" → Prioritizează întrebări de definire și terminologie
+- "Concentrează-te pe exemple" → Creează întrebări bazate pe aplicații practice
+- "Focusează-te pe [subiect specific]" → Prioritizează acel subiect în generare`
 
   try {
-    // Prepare request body based on API type
+    // Prepare request body based on API type with enhanced parameters
     let requestBody: any
     
     if (USE_OPENROUTER) {
-      // OpenRouter format with optimized parameters
+      // OpenRouter format with enhanced parameters for better quality
       requestBody = {
         model: AI_MODEL,
         messages: [
@@ -203,25 +218,30 @@ Asigură-te că:
             content: prompt
           }
         ],
-        max_tokens: 3000, // Increased for better quality
-        temperature: 0.7,  // Slightly higher for creativity
-        top_p: 0.9,
-        top_k: 40,
-        repetition_penalty: 1.05,
+        max_tokens: 4000, // Increased for more detailed responses
+        temperature: 0.6,  // Balanced for quality and creativity
+        top_p: 0.95,
+        top_k: 50,
+        repetition_penalty: 1.1,
+        frequency_penalty: 0.2, // Reduce repetition
+        presence_penalty: 0.2,  // Encourage new topics
         stream: false
       }
     } else {
-      // HuggingFace format with optimized parameters
+      // HuggingFace format with enhanced parameters
       requestBody = {
         inputs: prompt,
         parameters: {
-          max_new_tokens: 3000,
-          temperature: 0.7,
-          top_p: 0.9,
-          top_k: 40,
+          max_new_tokens: 4000,
+          temperature: 0.6,
+          top_p: 0.95,
+          top_k: 50,
           do_sample: true,
-          repetition_penalty: 1.05,
-          return_full_text: false
+          repetition_penalty: 1.1,
+          frequency_penalty: 0.2,
+          presence_penalty: 0.2,
+          return_full_text: false,
+          early_stopping: true
         },
       }
     }
