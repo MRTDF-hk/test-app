@@ -1,33 +1,47 @@
 {
-  "框架": "nextjs",
+  "version": 2,
+  "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "npm install",
   "outputDirectory": ".next",
-  "routes": [
+
+  "headers": [
     {
-      "src": "/api/(.*)",
-      "headers": {
-        "Cache-Control": "no-cache, no-store, must-revalidate"
-      }
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
     },
     {
-      "src": "/_next/static/(.*)",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
+      "source": "/_next/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     },
     {
-      "src": "/(.*)\\.(js|css|woff|woff2|ttf|eot|svg|jpg|jpeg|png|gif|ico|webp)$",
-      "headers": {
-        "Cache-Control": "public, max-age=2592000"
-      }
+      "source": "/(.*)\\.(js|css|woff|woff2|ttf|eot|svg|jpg|jpeg|png|gif|ico|webp)$",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000"
+        }
+      ]
     }
   ],
+
   "env": {
     "NEXT_PUBLIC_APP_NAME": "Quiz AI",
     "NEXT_PUBLIC_APP_VERSION": "1.0.0"
   },
+
   "regions": ["iad1"],
+
   "functions": {
     "api/**/*.ts": {
       "maxDuration": 30
