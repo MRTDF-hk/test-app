@@ -60,7 +60,7 @@ interface GenerateQuizResponse {
 export async function POST(request: NextRequest) {
   try {
     // Check if AI API key is configured
-    if (!AI_API_KEY) {
+    if (!AI_API_KEY && !SHOULD_USE_LOCAL_AI) {
       return NextResponse.json(
         { error: 'Configurație AI lipsă. Vă rugăm să contactați administratorul.' },
         { status: 500 }
