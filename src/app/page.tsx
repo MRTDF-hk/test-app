@@ -548,7 +548,7 @@ function HomeScreen({
 
           {/* Footer */}
           <div className="text-center mt-12 text-slate-500 text-sm">
-            <p>🚀 Rulează local • Fără API-uri externe • Vercel Ready</p>
+            <p>🚀 Created by Dancik</p>
           </div>
         </div>
       </div>
