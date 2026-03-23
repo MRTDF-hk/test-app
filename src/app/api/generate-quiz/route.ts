@@ -159,7 +159,7 @@ async function generateQuizWithAI(pdfText: string, customInstructions?: string, 
 
   // Build the prompt for the AI with enhanced instructions
   const extraInstructions = customInstructions 
-    ? `Instrucțiuni utilizator: ${customInstructions}
+    ? `INSTRUCȚIUNI EXPLICITE ALE UTILIZATORULUI: ${customInstructions}
 
 `
     : ''
@@ -170,86 +170,77 @@ async function generateQuizWithAI(pdfText: string, customInstructions?: string, 
   const isEasy = userInstructions.includes('ușor') || userInstructions.includes('easy') || userInstructions.includes('basic') || userInstructions.includes('simplu')
   const focusDefinitions = userInstructions.includes('defini') || userInstructions.includes('terminolog')
   const focusExamples = userInstructions.includes('exempl') || userInstructions.includes('aplica')
+  const regenerate = userInstructions.includes('regen') || userInstructions.includes('recalcul') || userInstructions.includes('refă')
   
-  const difficultyLevel = isDifficult ? 'NIVEL DIFICIL - creează întrebări complexe, analiză profundă, sinteză de concepte' : 
-                           isEasy ? 'NIVEL UȘOR - creează întrebări de bază, concepte fundamentale, înțelegere clară' : 
+  const difficultyLevel = isDifficult ? 'NIVEL DIFICIL - creează întrebări complexe, analiză profundă, sinteză de concepte, întrebări de tip "de ce" și "cum"' : 
+                           isEasy ? 'NIVEL UȘOR - creează întrebări de bază, concepte fundamentale, întrebări directe de recunoaștere' : 
                            'NIVEL MEDIU - echilibru între ușor și dificil'
   
-  const focusArea = focusDefinitions ? 'CONCENTRARE: definiții și terminologie' : 
-                    focusExamples ? 'CONCENTRARE: exemple și aplicații practice' : 
-                    'DISTRIBUȚIE ECHILIBRATĂ: definiții, exemple, aplicații'
+  const focusArea = focusDefinitions ? 'CONCENTRARE EXCLUSIVĂ: definiții și terminologie' : 
+                    focusExamples ? 'CONCENTRARE EXCLUSIVĂ: exemple și aplicații practice' : 
+                    'DISTRIBUȚIE ECHILIBRATĂ: definiții, exemple, aplicații, concepte'
 
-  const prompt = `Ești un EXPERT ABSOLUT în crearea de teste grilă educaționale. Ai rolul de a transforma conținutul dintr-un document PDF într-un test grilă de calitate superioară în limba română.
+  // CRITICAL: Make the prompt absolutely clear that external sources are forbidden
+  const prompt = `🎯 MISIUNE: Creează un test grilă EXCLUSIV din conținutul PDF-ului furnizat.
+
+⚠️ REGULI CRITICAL - VIOLAREA LOR VA REZULTA ÎN EȘEC:
+1. NU ACCESA INTERNETUL - nu căuta răspunsuri pe Google, Wikipedia sau orice alt site
+2. NU FOLOSI CUNOȘTINE GENERALE - totul trebuie să vină din PDF
+3. TOATE RĂSPUNSURILE TREBUIE VERIFICATE ÎN PDF - dacă nu e în PDF, nu e corect
+4. ANALIZEAZĂ INSTRUCȚIUNILE UTILIZATORULUI -${customInstructions ? ` "${customInstructions}"` : ' generează un test standard'}
 
 ═══════════════════════════════════════════════════════════════════════════════
-INSTRUCȚIUNILE UTILIZATORULUI (ANALIZEAZĂ CU MARE ATENȚIE):
-═══════════════════════════════════════════════════════════════════════════════
-${customInstructions || 'Generează un test grilă standard'}
-
-${extraInstructions}═══════════════════════════════════════════════════════════════════════════════
-CONȚINUTUL PDF (ANALIZEAZĂ FIECARE SECȚIUNE ÎN DETALU):
+📄 DOCUMENT PDF (SINGURA SURSĂ DE INFORMAȚIE):
 ═══════════════════════════════════════════════════════════════════════════════
 "${pdfText}"
 
 ═══════════════════════════════════════════════════════════════════════════════
-ANALIZĂ SPECIFICĂ:
+🎯 SPECIFICAȚII CERUTE:
 ═══════════════════════════════════════════════════════════════════════════════
-Dificultate: ${difficultyLevel}
-Focus: ${focusArea}
-Interval întrebări: ${parsed.questionRange || 'toate întrebările din PDF'}
-Număr întrebări cerute: ${parsed.numQuestions}
+• Număr întrebări: ${parsed.numQuestions} (OBLIGATORIU exact)
+• Dificultate: ${difficultyLevel}
+• Focus: ${focusArea}
+• Interval: ${parsed.questionRange || 'toate întrebările'}
+${regenerate ? '• MISIUNE SPECIALĂ: REGENEREAZĂ quiz-ul conform noilor instrucțiuni' : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
-REGULI OBLIGATORII - NU LE ÎNCĂLCA SUB NICIO FORMĂ:
+📋 INSTRUCȚIUNI DETALIATE - EXECUTĂ LITERAL:
 ═══════════════════════════════════════════════════════════════════════════════
-1. NUMĂR ÎNTREBĂRI: Generează EXACT ${parsed.numQuestions} întrebări (nu mai puțin, nu mai mult)
-2. SURSA INFORMAȚIILOR: TOATE întrebările și răspunsurile trebuie să fie bazate EXCLUSIV pe textul PDF. 
-   - NU folosi cunoștințe generale sau informații externe
-   - NU inventa termeni, definiții sau concepte care nu sunt în PDF
-   - Fiecare răspuns trebuie să poată fi verificat în documentul original
-3. VARIANTE: Fiecare întrebare trebuie să aibă EXACT 4 variante (A, B, C, D)
-4. UN SINGUR RĂSPUNS CORECT: Doar o variantă este corectă
-5. CALITATEA RĂSPUNSURILOR: Toate cele 4 variante trebuie să fie plauzibile și relevante
-6. LUNGIME ECHILIBRATĂ: Variantele de răspuns trebuie să aibă lungimi similare
-7. INDEPENDENȚĂ: Fiecare întrebare trebuie să fie independentă (nu depinde de altă întrebare)
-8. LIMBA: Toate întrebările și răspunsurile în limba română
-9. FORMAT: Returnează DOAR JSON valid, fără text suplimentar
+${extraInstructions}
 
 ═══════════════════════════════════════════════════════════════════════════════
-GHID DE GENERARE - URMEAZĂ ACEȘTI PAȘI:
+⚡ PROCES OBLIGATORIU DE CREARE:
 ═══════════════════════════════════════════════════════════════════════════════
-PASUL 1: Citește și înțelege complet textul PDF
-PASUL 2: Identifică conceptele cheie, definițiile, exemplele importante
-PASUL 3: Dacă există interval specificat (${parsed.questionRange || 'N/A'}), concentrează-te pe acel segment
-PASUL 4: Creează întrebări care testează înțelegerea profundă, nu doar memoria
-PASUL 5: Asigură-te că răspunsurile incorecte sunt bazate pe distorsionarea informațiilor din PDF
-PASUL 6: Verifică că fiecare întrebare poate fi răspunsă corect doar cunoscând conținutul PDF
-
-TIPURI DE ÎNTREBĂRI RECOMANDATE:
-- Definiții și terminologie
-- Explicații de concepte
-- Aplicații practice
-- Comparări și contraste
-- Implicații și consecințnțe
-- Rezumate și sinteze
+1. Citește TOT textul din PDF
+2. Identifică toate informațiile importante (definiții, concepte, exemple)
+3. Dacă e specificat un interval, concentrează-te pe acel segment
+4. Pentru FIECARE întrebare:
+   - Formulază întrebarea folosind DOAR cuvinte din PDF
+   - Răspunsul corect TREBUIE să fie o informație directă din PDF
+   - Cele 3 răspunsuri greșite trebuie să fie distorsiuni ale informațiilor din PDF
+   - NU căuta pe internet - folosește doar ce e în document
+5. Verifică că toate răspunsurile pot fi găsite în PDF
 
 ═══════════════════════════════════════════════════════════════════════════════
-FORMAT JSON EXACT (nu modifica structura):
+🔒 BARIERE CONTRA INTERNETULUI:
+═══════════════════════════════════════════════════════════════════════════════
+- Dacă o întrebare nu poate fi răspunsă folosind DOAR PDF-ul, nu o pune în test
+- Răspunsurile greșite trebuie să pară plauzibile DAR greșite conform PDF-ului
+- Nu folosi răspunsuri care "sună corect" dar nu sunt în document
+- Fiecare variantă trebuie să fie verificabilă în textul original
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 FORMAT JSON (OBLIGATORIU - exact ${parsed.numQuestions} întrebări):
 ═══════════════════════════════════════════════════════════════════════════════
 [
   {
-    "question": "Întrebarea ta bazată exclusiv pe PDF",
-    "options": [
-      "A. Varianta 1",
-      "B. Varianta 2",
-      "C. Varianta 3",
-      "D. Varianta 4"
-    ],
+    "question": "Întrebare bazată DOAR pe PDF",
+    "options": ["A. răspuns din PDF", "B. răspuns din PDF", "C. răspuns din PDF", "D. răspuns din PDF"],
     "correctAnswer": "A"
   }
 ]
 
-IMPORTANT: Dacă utilizezi ${parsed.numQuestions} întrebări, JSON-ul trebuie să conțină exact ${parsed.numQuestions} obiecte. Nu adăuga explicații, nu adăuga text дополнитель, doar JSON pur.
+⚠️ ATENȚIE: JSON-ul trebuie să conțină EXACT ${parsed.numQuestions} întrebări. Fără text дополнитель, fără explicații, doar JSON pur.
 - JSON-ul este valid și poate fi parsat fără erori
 
 Dacă utilizatorul specifică:
@@ -264,17 +255,24 @@ IMPORTANT: Respectă EXACT instrucțiunile utilizatorului. Dacă specifică un a
 
 NU folosi cunoștințe generale care nu sunt în PDF. Toate întrebările trebuie să fie bazate STRICT pe textul furnizat.`
 
-  // Enhanced prompt with better instruction following
+  // Enhanced prompt with better instruction following - CRITICAL INSTRUCTIONS
   const enhancedPrompt = `${prompt}
 
-EXEMPLU de respectare a instrucțiunilor:
-Dacă utilizatorul spune "Generează întrebări ușoare despre definiții", creează întrebări simple care se concentrează pe termeni și definiții din text.
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ ATENȚIE MAXIMĂ - REGULI ANTI-INTERNET:
+═══════════════════════════════════════════════════════════════════════════════
+❌ NU ACCESA INTERNETUL - EȘTI OFFLINE
+❌ NU CĂUTA PE GOOGLE - TOTUL TREBUIE SĂ VIE DIN PDF
+❌ RĂSPUNSUL CORECT TREBUIE SĂ FIE ÎN PDF
+❌ RĂSPUNSURILE GREȘITE TREBUIE SĂ FIE TOT DIN PDF (distorsionate)
 
-Dacă utilizatorul spune "Focusează-te pe exemple", creează întrebări care se bazează pe exemplele concrete din text.
+🎯 EXECUȚIE INSTRUCȚIUNI UTILIZATOR:
+Dacă spui "regenerează" sau "refă" - ignoră quiz-ul anterior și creează unul nou conform noilor cerințe
+Dacă specifici un număr diferit de întrebări - respectă exact numărul
+Dacă specifici un interval - concentrează-te pe acel segment din PDF
+Dacă modifici dificultatea - schimbă nivelul conform cerințelor
 
-Dacă utilizatorul spune "Generează întrebări dificile", creează întrebări care necesită analiză profundă și înțelegere complexă.
-
-Acum generează testul grilă:`
+ACUM EXECUTĂ: Generează exact ${parsed.numQuestions} întrebări conform instrucțiunilor: ${customInstructions || 'test standard'}`
 
   try {
     // Prepare request body based on API type with enhanced parameters
