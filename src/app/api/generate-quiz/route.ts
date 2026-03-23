@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     const parsedInstructions = parseCustomInstructions(customInstructions)
     // Override numQuestions from form if provided
     if (numQuestionsFromForm && numQuestionsFromForm > 0) {
-      parsedInstructions.numQuestions = Math.min(Math.max(numQuestionsFromForm, 1), 100)
+      parsedInstructions.numQuestions = Math.min(Math.max(numQuestionsFromForm, 1), 200)
     }
     const quiz = await generateQuizWithAI(processedText, customInstructions, parsedInstructions)
 
@@ -602,21 +602,21 @@ function parseCustomInstructions(instructions?: string): ParsedInstructions {
   const numberMatch = lowerInstructions.match(/(\d+)\s*(intrebari|questions|inrebari|intrebări)/)
   if (numberMatch) {
     const num = parseInt(numberMatch[1])
-    result.numQuestions = Math.min(Math.max(num, 1), 100) // Limit between 1-100
+    result.numQuestions = Math.min(Math.max(num, 1), 200) // Limit between 1-200
   }
   
   // Also check for just a number followed by these words
   const numOnlyMatch = lowerInstructions.match(/(\d+)\s*(?:intrebari|questions|inrebari|intrebări)\s*(?:din|from)?\s*(\d+)?/)
   if (numOnlyMatch && !numberMatch) {
     const num = parseInt(numOnlyMatch[1])
-    result.numQuestions = Math.min(Math.max(num, 1), 100)
+    result.numQuestions = Math.min(Math.max(num, 1), 200)
   }
   
   // Check for explicit number at start (e.g., "50 intrebari" or "50 questions")
   const explicitNum = lowerInstructions.match(/^(\d+)\s+(intrebari|questions|inrebari|intrebări)/)
   if (explicitNum) {
     const num = parseInt(explicitNum[1])
-    result.numQuestions = Math.min(Math.max(num, 1), 100)
+    result.numQuestions = Math.min(Math.max(num, 1), 200)
   }
   
   // Extract question range - look for patterns like "1-288", "intrebari 1-288", etc.

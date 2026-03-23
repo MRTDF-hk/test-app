@@ -27,7 +27,7 @@ const formSchema = z.object({
     })
     .optional(),
   customInstructions: z.string().optional(),
-  numQuestions: z.coerce.number().min(1).max(100).default(10),
+  numQuestions: z.coerce.number().min(1).max(200).default(10),
 })
 
 interface Question {
@@ -609,12 +609,12 @@ function UploadScreen({
                   type="number"
                   {...register('numQuestions')}
                   min={1}
-                  max={100}
+                  max={200}
                   defaultValue={10}
                   className="w-full p-4 border border-slate-600 rounded-lg bg-slate-700/50 text-slate-200 focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
                 />
                 <p className="mt-1 text-xs text-slate-400">
-                  Introduceți un număr între 1 și 100
+                  Introduceți un număr între 1 și 200
                 </p>
               </div>
 
