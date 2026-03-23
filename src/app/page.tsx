@@ -27,7 +27,7 @@ const formSchema = z.object({
     })
     .optional(),
   customInstructions: z.string().optional(),
-  numQuestions: z.coerce.number().min(1).max(100).default(10),
+  numQuestions: z.coerce.number().min(1).max(300).default(10),
 })
 
 interface Question {
@@ -609,12 +609,12 @@ function UploadScreen({
                   type="number"
                   {...register('numQuestions')}
                   min={1}
-                  max={100}
+                  max={300}
                   defaultValue={10}
                   className="w-full p-4 border border-slate-600 rounded-lg bg-slate-700/50 text-slate-200 focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
                 />
                 <p className="mt-1 text-xs text-slate-400">
-                  Introduceți un număr între 1 și 100
+                  Introduceți un număr între 1 și 300
                 </p>
               </div>
 
@@ -626,10 +626,11 @@ function UploadScreen({
                   {...register('customInstructions')}
                   rows={4}
                   placeholder="Exemple:
-• '100 intrebari' - generează 100 de întrebări
+• '300 intrebari' - generează 300 de întrebări
 • 'intrebari 1-288' - folosește doar întrebările 1-288 din PDF
-• '50 intrebari din 1-100' - 50 întrebări din primele 100
-• 'Generează întrebări ușoare' - nivel ușor"
+• '100 intrebari din 1-200' - 100 întrebări din primele 200
+• 'Generează întrebări ușoare' - nivel ușor
+• 'intrebari dificile' - nivel avansat"
                   className="w-full p-4 border border-slate-600 rounded-lg resize-none bg-slate-700/50 text-slate-200 placeholder-slate-400 focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
                 />
               </div>
