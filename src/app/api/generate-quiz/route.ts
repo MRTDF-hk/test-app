@@ -157,7 +157,7 @@ ${instructions}Text extras din PDF:
 "${pdfText}"
 
 Cerințe stricte:
-1. Generează MINIM 5 întrebări relevante bazate pe text
+1. Generează între 5 și 15 întrebări relevante bazate pe text (în funcție de lungimea textului)
 2. Fiecare întrebare trebuie să aibă EXACT 4 variante de răspuns (A, B, C, D)
 3. Doar un singur răspuns este corect
 4. Răspunsurile trebuie să fie plauzibile, diverse și bine echilibrate
@@ -173,6 +173,8 @@ Reguli pentru generare:
 - Asigură-te că răspunsurile incorecte sunt plauzibile
 - Nu folosi cuvinte-cheie din întrebare în răspunsul corect
 - Diverse tipuri de întrebări: definiții, exemple, aplicații, implicații
+- Distribuie întrebările uniform pe tot parcursul textului
+- Asigură-te că fiecare întrebare este independentă
 
 Format JSON strict:
 [
@@ -202,7 +204,21 @@ Dacă utilizatorul specifică:
 - "Generează întrebări dificile" → Creează întrebări complexe, analiză profundă
 - "Concentrează-te pe definiții" → Prioritizează întrebări de definire și terminologie
 - "Concentrează-te pe exemple" → Creează întrebări bazate pe aplicații practice
-- "Focusează-te pe [subiect specific]" → Prioritizează acel subiect în generare`
+- "Focusează-te pe [subiect specific]" → Prioritizează acel subiect în generare
+
+IMPORTANT: Respectă EXACT instrucțiunile utilizatorului. Dacă specifică un anumit tip de întrebări sau un anumit subiect, concentrează-te exclusiv pe acel aspect. Nu ignora cerințele utilizatorului.`
+
+  // Enhanced prompt with better instruction following
+  const enhancedPrompt = `${prompt}
+
+EXEMPLU de respectare a instrucțiunilor:
+Dacă utilizatorul spune "Generează întrebări ușoare despre definiții", creează întrebări simple care se concentrează pe termeni și definiții din text.
+
+Dacă utilizatorul spune "Focusează-te pe exemple", creează întrebări care se bazează pe exemplele concrete din text.
+
+Dacă utilizatorul spune "Generează întrebări dificile", creează întrebări care necesită analiză profundă și înțelegere complexă.
+
+Acum generează testul grilă:`
 
   try {
     // Prepare request body based on API type with enhanced parameters
@@ -215,31 +231,31 @@ Dacă utilizatorul specifică:
         messages: [
           {
             role: 'user',
-            content: prompt
+            content: enhancedPrompt
           }
         ],
-        max_tokens: 4000, // Increased for more detailed responses
-        temperature: 0.6,  // Balanced for quality and creativity
-        top_p: 0.95,
-        top_k: 50,
-        repetition_penalty: 1.1,
-        frequency_penalty: 0.2, // Reduce repetition
-        presence_penalty: 0.2,  // Encourage new topics
+        max_tokens: 5000, // Increased for more detailed responses
+        temperature: 0.5,  // Lower for better instruction following
+        top_p: 0.9,
+        top_k: 40,
+        repetition_penalty: 1.2,
+        frequency_penalty: 0.3, // Reduce repetition
+        presence_penalty: 0.3,  // Encourage new topics
         stream: false
       }
     } else {
       // HuggingFace format with enhanced parameters
       requestBody = {
-        inputs: prompt,
+        inputs: enhancedPrompt,
         parameters: {
-          max_new_tokens: 4000,
-          temperature: 0.6,
-          top_p: 0.95,
-          top_k: 50,
+          max_new_tokens: 5000,
+          temperature: 0.5,
+          top_p: 0.9,
+          top_k: 40,
           do_sample: true,
-          repetition_penalty: 1.1,
-          frequency_penalty: 0.2,
-          presence_penalty: 0.2,
+          repetition_penalty: 1.2,
+          frequency_penalty: 0.3,
+          presence_penalty: 0.3,
           return_full_text: false,
           early_stopping: true
         },
