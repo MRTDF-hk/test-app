@@ -67,6 +67,13 @@ export default function Home() {
       const result = await response.json()
       setQuiz(result.quiz)
       setFileName(data.pdfFile.name)
+      
+      // Show method used for quiz generation
+      if (result.aiMethod === 'local') {
+        console.log('Quiz generated using local AI method')
+      } else {
+        console.log('Quiz generated using cloud AI method')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'A apărut o eroare necunoscută')
     } finally {

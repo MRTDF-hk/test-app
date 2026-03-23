@@ -9,6 +9,9 @@ const USE_LOCAL_AI = process.env.USE_LOCAL_AI === 'true'
 const USE_OPENROUTER = process.env.OPENROUTER_API_KEY && !USE_LOCAL_AI
 const USE_HUGGINGFACE = process.env.HUGGINGFACE_API_KEY && !USE_LOCAL_AI && !USE_OPENROUTER
 
+// Default to cloud AI if API key is provided, otherwise use local AI
+const SHOULD_USE_LOCAL_AI = !AI_API_KEY || USE_LOCAL_AI
+
 // API configuration for external AI services
 let AI_API_URL: string
 let AI_MODEL: string
@@ -118,13 +121,14 @@ export async function POST(request: NextRequest) {
       processedText += '\n\n[Textul a fost trunchiat pentru a se încadra în limita de procesare]'
     }
 
-    // Generate quiz using AI
+    // Generate quiz using AI (default to local AI if no API key configured)
     const quiz = await generateQuizWithAI(processedText, customInstructions)
 
     return NextResponse.json({
       success: true,
       quiz: quiz,
       fileName: pdfFile.name,
+      aiMethod: SHOULD_USE_LOCAL_AI ? 'local' : 'cloud'
     })
 
   } catch (error) {
@@ -176,14 +180,21 @@ Format JSON strict:
   }
 ]
 
-Important: Respecă EXACT formatul JSON de mai sus. Nu adăuga comentarii sau text suplimentar.`
+Important: Respecă EXACT formatul JSON de mai sus. Nu adăuga comentarii sau text suplimentar.
+
+Asigură-te că:
+- Toate întrebările sunt în limba română
+- Răspunsurile sunt diverse și nu evidente
+- Întrebările acoperă diferite aspecte ale textului
+- Variantele de răspuns sunt de lungimi similare
+- JSON-ul este valid și poate fi parsat fără erori`
 
   try {
     // Prepare request body based on API type
     let requestBody: any
     
     if (USE_OPENROUTER) {
-      // OpenRouter format
+      // OpenRouter format with optimized parameters
       requestBody = {
         model: AI_MODEL,
         messages: [
@@ -192,24 +203,25 @@ Important: Respecă EXACT formatul JSON de mai sus. Nu adăuga comentarii sau te
             content: prompt
           }
         ],
-        max_tokens: 2500,
-        temperature: 0.6,
-        top_p: 0.95,
-        top_k: 50,
-        repetition_penalty: 1.1,
+        max_tokens: 3000, // Increased for better quality
+        temperature: 0.7,  // Slightly higher for creativity
+        top_p: 0.9,
+        top_k: 40,
+        repetition_penalty: 1.05,
         stream: false
       }
     } else {
-      // HuggingFace format
+      // HuggingFace format with optimized parameters
       requestBody = {
         inputs: prompt,
         parameters: {
-          max_new_tokens: 2500,
-          temperature: 0.6,
-          top_p: 0.95,
-          top_k: 50,
+          max_new_tokens: 3000,
+          temperature: 0.7,
+          top_p: 0.9,
+          top_k: 40,
           do_sample: true,
-          repetition_penalty: 1.1,
+          repetition_penalty: 1.05,
+          return_full_text: false
         },
       }
     }
