@@ -40,10 +40,17 @@ export default function Home() {
     setError(null)
     setQuiz([])
     
+    // Validate that we have a file
+    if (!data.pdfFile) {
+      setError('Vă rugăm să selectați un fișier PDF')
+      setIsProcessing(false)
+      return
+    }
+    
     const formData = new FormData()
-    formData.append('pdfFile', data.pdfFile!)
-    if (data.customInstructions) {
-      formData.append('customInstructions', data.customInstructions)
+    formData.append('pdfFile', data.pdfFile)
+    if (data.customInstructions && data.customInstructions.trim()) {
+      formData.append('customInstructions', data.customInstructions.trim())
     }
 
     try {
@@ -53,12 +60,13 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        throw new Error('A apărut o eroare la generarea testului')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'A apărut o eroare la generarea testului')
       }
 
       const result = await response.json()
       setQuiz(result.quiz)
-      setFileName(data.pdfFile?.name || null)
+      setFileName(data.pdfFile.name)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'A apărut o eroare necunoscută')
     } finally {
