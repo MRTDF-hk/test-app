@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     const parsedInstructions = parseCustomInstructions(customInstructions)
     // Override numQuestions from form if provided
     if (numQuestionsFromForm && numQuestionsFromForm > 0) {
-      parsedInstructions.numQuestions = Math.min(Math.max(numQuestionsFromForm, 1), 300)
+      parsedInstructions.numQuestions = Math.min(Math.max(numQuestionsFromForm, 1), 100)
     }
     const quiz = await generateQuizWithAI(processedText, customInstructions, parsedInstructions)
 
@@ -157,90 +157,52 @@ async function generateQuizWithAI(pdfText: string, customInstructions?: string, 
     return generateQuizLocally(pdfText, customInstructions, parsed.numQuestions)
   }
 
-  // Build the prompt for the AI with enhanced instructions
+  // Build the prompt for the AI - SIMPLE AND DIRECT
   const extraInstructions = customInstructions 
-    ? `INSTRUCȚIUNI EXPLICITE ALE UTILIZATORULUI: ${customInstructions}
-
+    ? `CERERE UTILIZATOR: ${customInstructions}
 `
     : ''
 
-  // Analyze user instructions for specific requests
+  // Analyze user instructions
   const userInstructions = customInstructions ? customInstructions.toLowerCase() : ''
   const isDifficult = userInstructions.includes('dific') || userInstructions.includes('hard') || userInstructions.includes('complex')
-  const isEasy = userInstructions.includes('ușor') || userInstructions.includes('easy') || userInstructions.includes('basic') || userInstructions.includes('simplu')
+  const isEasy = userInstructions.includes('ușor') || userInstructions.includes('easy') || userInstructions.includes('basic')
   const focusDefinitions = userInstructions.includes('defini') || userInstructions.includes('terminolog')
   const focusExamples = userInstructions.includes('exempl') || userInstructions.includes('aplica')
   const regenerate = userInstructions.includes('regen') || userInstructions.includes('recalcul') || userInstructions.includes('refă')
   
-  const difficultyLevel = isDifficult ? 'NIVEL DIFICIL - creează întrebări complexe, analiză profundă, sinteză de concepte, întrebări de tip "de ce" și "cum"' : 
-                           isEasy ? 'NIVEL UȘOR - creează întrebări de bază, concepte fundamentale, întrebări directe de recunoaștere' : 
-                           'NIVEL MEDIU - echilibru între ușor și dificil'
+  const difficultyText = isDifficult ? 'ÎNTREBĂRI DIFICILE - analiză profundă, sinteză' : 
+                         isEasy ? 'ÎNTREBĂRI UȘOARE - concepte de bază' : 
+                         'ÎNTREBĂRI MEDII'
   
-  const focusArea = focusDefinitions ? 'CONCENTRARE EXCLUSIVĂ: definiții și terminologie' : 
-                    focusExamples ? 'CONCENTRARE EXCLUSIVĂ: exemple și aplicații practice' : 
-                    'DISTRIBUȚIE ECHILIBRATĂ: definiții, exemple, aplicații, concepte'
+  const focusText = focusDefinitions ? 'FOCUS: definiții și termeni' : 
+                    focusExamples ? 'FOCUS: exemple și aplicații' : 
+                    'FOCUS: echilibrat'
 
-  // CRITICAL: Make the prompt absolutely clear that external sources are forbidden
-  const prompt = `🎯 MISIUNE: Creează un test grilă EXCLUSIV din conținutul PDF-ului furnizat.
+  const prompt = `CREARE TEST GRILĂ - ROMÂNĂ
 
-⚠️ REGULI CRITICAL - VIOLAREA LOR VA REZULTA ÎN EȘEC:
-1. NU ACCESA INTERNETUL - nu căuta răspunsuri pe Google, Wikipedia sau orice alt site
-2. NU FOLOSI CUNOȘTINE GENERALE - totul trebuie să vină din PDF
-3. TOATE RĂSPUNSURILE TREBUIE VERIFICATE ÎN PDF - dacă nu e în PDF, nu e corect
-4. ANALIZEAZĂ INSTRUCȚIUNILE UTILIZATORULUI -${customInstructions ? ` "${customInstructions}"` : ' generează un test standard'}
+📄 DOCUMENT PDF (SINGURA SURSA):
+${pdfText}
 
-═══════════════════════════════════════════════════════════════════════════════
-📄 DOCUMENT PDF (SINGURA SURSĂ DE INFORMAȚIE):
-═══════════════════════════════════════════════════════════════════════════════
-"${pdfText}"
+📋 CERINȚE:
+- ${parsed.numQuestions} întrebări
+- ${difficultyText}
+- ${focusText}
+- Interval: ${parsed.questionRange || 'tot PDF-ul'}
+${regenerate ? '- REGENEREAZĂ quiz-ul complet' : ''}
 
-═══════════════════════════════════════════════════════════════════════════════
-🎯 SPECIFICAȚII CERUTE:
-═══════════════════════════════════════════════════════════════════════════════
-• Număr întrebări: ${parsed.numQuestions} (OBLIGATORIU exact)
-• Dificultate: ${difficultyLevel}
-• Focus: ${focusArea}
-• Interval: ${parsed.questionRange || 'toate întrebările'}
-${regenerate ? '• MISIUNE SPECIALĂ: REGENEREAZĂ quiz-ul conform noilor instrucțiuni' : ''}
+🎯 REGULI OBLIGATORII:
+1. Fiecare întrebare și răspuns TREBUIE să fie în PDF
+2. NU folosi informații din afara PDF-ului
+3. Răspunsul corect = informație din PDF
+4. Răspunsurile greșite = distorsiuni ale informațiilor din PDF
+5. Exact 4 variante (A,B,C,D) per întrebare
 
-═══════════════════════════════════════════════════════════════════════════════
-📋 INSTRUCȚIUNI DETALIATE - EXECUTĂ LITERAL:
-═══════════════════════════════════════════════════════════════════════════════
-${extraInstructions}
+⚠️ FII ATENT LA CEREREA UTILIZATORULUI:
+${customInstructions || 'Generează test standard'}
 
-═══════════════════════════════════════════════════════════════════════════════
-⚡ PROCES OBLIGATORIU DE CREARE:
-═══════════════════════════════════════════════════════════════════════════════
-1. Citește TOT textul din PDF
-2. Identifică toate informațiile importante (definiții, concepte, exemple)
-3. Dacă e specificat un interval, concentrează-te pe acel segment
-4. Pentru FIECARE întrebare:
-   - Formulază întrebarea folosind DOAR cuvinte din PDF
-   - Răspunsul corect TREBUIE să fie o informație directă din PDF
-   - Cele 3 răspunsuri greșite trebuie să fie distorsiuni ale informațiilor din PDF
-   - NU căuta pe internet - folosește doar ce e în document
-5. Verifică că toate răspunsurile pot fi găsite în PDF
-
-═══════════════════════════════════════════════════════════════════════════════
-🔒 BARIERE CONTRA INTERNETULUI:
-═══════════════════════════════════════════════════════════════════════════════
-- Dacă o întrebare nu poate fi răspunsă folosind DOAR PDF-ul, nu o pune în test
-- Răspunsurile greșite trebuie să pară plauzibile DAR greșite conform PDF-ului
-- Nu folosi răspunsuri care "sună corect" dar nu sunt în document
-- Fiecare variantă trebuie să fie verificabilă în textul original
-
-═══════════════════════════════════════════════════════════════════════════════
-📊 FORMAT JSON (OBLIGATORIU - exact ${parsed.numQuestions} întrebări):
-═══════════════════════════════════════════════════════════════════════════════
-[
-  {
-    "question": "Întrebare bazată DOAR pe PDF",
-    "options": ["A. răspuns din PDF", "B. răspuns din PDF", "C. răspuns din PDF", "D. răspuns din PDF"],
-    "correctAnswer": "A"
-  }
-]
-
-⚠️ ATENȚIE: JSON-ul trebuie să conțină EXACT ${parsed.numQuestions} întrebări. Fără text дополнитель, fără explicații, doar JSON pur.
+📊 FORMAT JSON cu EXACT ${parsed.numQuestions} întrebări:
+[{"question":"...","options":["A.","B.","C.","D."],"correctAnswer":"A"}]
 - JSON-ul este valid și poate fi parsat fără erori
 
 Dacă utilizatorul specifică:
@@ -640,21 +602,21 @@ function parseCustomInstructions(instructions?: string): ParsedInstructions {
   const numberMatch = lowerInstructions.match(/(\d+)\s*(intrebari|questions|inrebari|intrebări)/)
   if (numberMatch) {
     const num = parseInt(numberMatch[1])
-    result.numQuestions = Math.min(Math.max(num, 1), 300) // Limit between 1-300
+    result.numQuestions = Math.min(Math.max(num, 1), 100) // Limit between 1-100
   }
   
   // Also check for just a number followed by these words
   const numOnlyMatch = lowerInstructions.match(/(\d+)\s*(?:intrebari|questions|inrebari|intrebări)\s*(?:din|from)?\s*(\d+)?/)
   if (numOnlyMatch && !numberMatch) {
     const num = parseInt(numOnlyMatch[1])
-    result.numQuestions = Math.min(Math.max(num, 1), 300)
+    result.numQuestions = Math.min(Math.max(num, 1), 100)
   }
   
   // Check for explicit number at start (e.g., "50 intrebari" or "50 questions")
   const explicitNum = lowerInstructions.match(/^(\d+)\s+(intrebari|questions|inrebari|intrebări)/)
   if (explicitNum) {
     const num = parseInt(explicitNum[1])
-    result.numQuestions = Math.min(Math.max(num, 1), 300)
+    result.numQuestions = Math.min(Math.max(num, 1), 100)
   }
   
   // Extract question range - look for patterns like "1-288", "intrebari 1-288", etc.
