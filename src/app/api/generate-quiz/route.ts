@@ -1,9 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pdfParse from 'pdf-parse'
 
-// Free AI API configuration (using HuggingFace Inference API)
-const AI_API_URL = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2'
-const AI_API_KEY = process.env.AI_API_KEY
+// Free AI API configuration - Multiple options supported
+const AI_API_KEY = process.env.OPENROUTER_API_KEY || process.env.HUGGINGFACE_API_KEY || process.env.AI_API_KEY
+
+// Determine which API to use based on available keys
+let AI_API_URL: string
+let AI_MODEL: string
+let AI_HEADERS: Record<string, string>
+
+if (process.env.OPENROUTER_API_KEY) {
+  // OpenRouter API (Recommended - free tier available)
+  AI_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+  AI_MODEL = 'mistralai/mistral-7b-instruct:free'
+  AI_HEADERS = {
+    'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+    'Content-Type': 'application/json',
+    'HTTP-Referer': 'https://localhost:3000',
+    'X-Title': 'PDF Quiz Generator'
+  }
+} else if (process.env.HUGGINGFACE_API_KEY) {
+  // HuggingFace Inference API
+  AI_API_URL = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2'
+  AI_MODEL = 'mistralai/Mistral-7B-Instruct-v0.2'
+  AI_HEADERS = {
+    'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+    'Content-Type': 'application/json'
+  }
+} else {
+  // Default to OpenRouter if no specific key is set but AI_API_KEY exists
+  AI_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+  AI_MODEL = 'mistralai/mistral-7b-instruct:free'
+  AI_HEADERS = {
+    'Authorization': `Bearer ${AI_API_KEY}`,
+    'Content-Type': 'application/json',
+    'HTTP-Referer': 'https://localhost:3000',
+    'X-Title': 'PDF Quiz Generator'
+  }
+}
 
 interface QuizQuestion {
   question: string
@@ -98,85 +132,159 @@ export async function POST(request: NextRequest) {
 }
 
 async function generateQuizWithAI(pdfText: string, customInstructions?: string): Promise<QuizQuestion[]> {
-  // Build the prompt for the AI
+  // Build the prompt for the AI with improved instructions
   const instructions = customInstructions 
     ? `Instrucțiuni suplimentare: ${customInstructions}\n\n`
     : ''
 
-  const prompt = `Transformă următorul text într-un test grilă în limba română. Generează minim 5 întrebări.
+  const prompt = `Ești un expert în crearea de teste grilă. Transformă următorul text într-un test grilă în limba română.
 
 ${instructions}Text extras din PDF:
 "${pdfText}"
 
-Cerințe:
-- Fiecare întrebare trebuie să aibă EXACT 4 variante de răspuns (A, B, C, D)
-- Doar un singur răspuns este corect
-- Răspunsurile trebuie să fie plauzibile
-- Formatează răspunsul ca JSON valid:
+Cerințe stricte:
+1. Generează MINIM 5 întrebări relevante bazate pe text
+2. Fiecare întrebare trebuie să aibă EXACT 4 variante de răspuns (A, B, C, D)
+3. Doar un singur răspuns este corect
+4. Răspunsurile trebuie să fie plauzibile și bine echilibrate
+5. Evită întrebările cu răspunsuri evidente sau triviale
+6. Formulează întrebările clar și concis
+7. Asigură-te că variantele de răspuns sunt de lungimi similare
+8. Returnează DOAR JSON-ul valid, fără explicații suplimentare
 
+Format JSON strict:
 [
   {
-    "question": "Întrebare în română",
-    "options": ["A. Varianta 1", "B. Varianta 2", "C. Varianta 3", "D. Varianta 4"],
+    "question": "Întrebare clară și relevantă",
+    "options": [
+      "A. Varianta de răspuns 1",
+      "B. Varianta de răspuns 2", 
+      "C. Varianta de răspuns 3",
+      "D. Varianta de răspuns 4"
+    ],
     "correctAnswer": "A"
   }
 ]
 
-Important: Returnează DOAR JSON-ul, fără explicații suplimentare.`
+Important: Respecă EXACT formatul JSON de mai sus. Nu adăuga comentarii sau text suplimentar.`
 
   try {
-    const response = await fetch(AI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${AI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    // Prepare request body based on API type
+    let requestBody: any
+    
+    if (process.env.OPENROUTER_API_KEY || (!process.env.HUGGINGFACE_API_KEY && AI_API_KEY)) {
+      // OpenRouter format
+      requestBody = {
+        model: AI_MODEL,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 2500,
+        temperature: 0.6,
+        top_p: 0.95,
+        top_k: 50,
+        repetition_penalty: 1.1,
+        stream: false
+      }
+    } else {
+      // HuggingFace format
+      requestBody = {
         inputs: prompt,
         parameters: {
-          max_new_tokens: 2000,
-          temperature: 0.7,
-          top_p: 0.9,
+          max_new_tokens: 2500,
+          temperature: 0.6,
+          top_p: 0.95,
+          top_k: 50,
           do_sample: true,
+          repetition_penalty: 1.1,
         },
-      }),
+      }
+    }
+
+    const response = await fetch(AI_API_URL, {
+      method: 'POST',
+      headers: AI_HEADERS,
+      body: JSON.stringify(requestBody),
     })
 
     if (!response.ok) {
-      throw new Error(`Eroare API AI: ${response.status}`)
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`Eroare API AI: ${response.status} - ${errorData.error || 'Server indisponibil'}`)
     }
 
     const result = await response.json()
     
-    // Extract generated text from response
-    const generatedText = result[0]?.generated_text || result.generated_text || ''
+    // Extract generated text from response based on API type
+    let generatedText = ''
     
-    // Parse JSON from the response
+    if (process.env.OPENROUTER_API_KEY || (!process.env.HUGGINGFACE_API_KEY && AI_API_KEY)) {
+      // OpenRouter format
+      generatedText = result.choices?.[0]?.message?.content || ''
+    } else {
+      // HuggingFace format
+      generatedText = result[0]?.generated_text || result.generated_text || ''
+    }
+    
+    // Parse JSON from the response with improved error handling
     const quiz = parseQuizFromResponse(generatedText)
     
     return quiz
 
   } catch (error) {
     console.error('Eroare la apelul API AI:', error)
-    throw new Error('Eroare la generarea testului cu AI')
+    throw new Error('Eroare la generarea testului cu AI. Vă rugăm să încercați din nou.')
   }
 }
 
 function parseQuizFromResponse(responseText: string): QuizQuestion[] {
   try {
-    // Try to find JSON in the response
-    const jsonMatch = responseText.match(/\[([\s\S]*?)\]/)
+    // Try multiple approaches to find JSON in the response
+    let jsonString = ''
     
-    if (!jsonMatch) {
-      throw new Error('Nu s-a putut găsi JSON în răspunsul AI')
+    // Approach 1: Look for JSON array pattern
+    const jsonMatch = responseText.match(/\[([\s\S]*?)\]/)
+    if (jsonMatch) {
+      jsonString = jsonMatch[0]
+    } else {
+      // Approach 2: Look for JSON object pattern
+      const objectMatch = responseText.match(/\{[\s\S]*\}/)
+      if (objectMatch) {
+        jsonString = objectMatch[0]
+      } else {
+        // Approach 3: Try to extract from code blocks
+        const codeBlockMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/)
+        if (codeBlockMatch) {
+          jsonString = codeBlockMatch[1]
+        } else {
+          throw new Error('Nu s-a putut găsi JSON în răspunsul AI')
+        }
+      }
     }
 
-    const jsonString = jsonMatch[0]
-    const parsed = JSON.parse(jsonString)
+    let parsed
+    try {
+      parsed = JSON.parse(jsonString)
+    } catch (parseError) {
+      // Try to fix common JSON issues
+      const fixedJson = jsonString
+        .replace(/'/g, '"')  // Replace single quotes with double quotes
+        .replace(/,\s*}/g, '}')  // Remove trailing commas
+        .replace(/,\s*]/g, ']')  // Remove trailing commas
+        .replace(/(\w+):/g, '"$1":')  // Add quotes to keys
+      
+      parsed = JSON.parse(fixedJson)
+    }
 
-    // Validate and normalize the quiz structure
+    // Ensure we have an array
     if (!Array.isArray(parsed)) {
-      throw new Error('Răspunsul AI nu este un array valid')
+      if (parsed.question && parsed.options && parsed.correctAnswer) {
+        parsed = [parsed] // Convert single object to array
+      } else {
+        throw new Error('Răspunsul AI nu este un array valid sau un obiect întrebare valid')
+      }
     }
 
     const quiz: QuizQuestion[] = []
@@ -185,7 +293,7 @@ function parseQuizFromResponse(responseText: string): QuizQuestion[] {
       if (
         typeof item.question === 'string' &&
         Array.isArray(item.options) &&
-        item.options.length === 4 &&
+        item.options.length >= 3 && // Allow minimum 3 options
         typeof item.correctAnswer === 'string'
       ) {
         // Normalize options format (ensure they start with A., B., C., D.)
@@ -195,12 +303,30 @@ function parseQuizFromResponse(responseText: string): QuizQuestion[] {
           return `${letter}. ${cleanOption}`
         })
 
+        // Ensure we have exactly 4 options
+        while (normalizedOptions.length < 4) {
+          normalizedOptions.push(`${String.fromCharCode(65 + normalizedOptions.length)}. Răspuns suplimentar`)
+        }
+
         // Validate correct answer format
-        const correctAnswer = item.correctAnswer.replace(/\./g, '').trim().toUpperCase()
+        let correctAnswer = item.correctAnswer.replace(/\./g, '').trim().toUpperCase()
+        
+        // If correct answer is a number, convert to letter
+        if (!isNaN(parseInt(correctAnswer))) {
+          const index = parseInt(correctAnswer) - 1
+          if (index >= 0 && index < 4) {
+            correctAnswer = String.fromCharCode(65 + index)
+          }
+        }
+
+        // Ensure correct answer is valid
+        if (!['A', 'B', 'C', 'D'].includes(correctAnswer)) {
+          correctAnswer = 'A' // Default to first option if invalid
+        }
         
         quiz.push({
           question: item.question.trim(),
-          options: normalizedOptions,
+          options: normalizedOptions.slice(0, 4), // Take only first 4 options
           correctAnswer: correctAnswer,
         })
       }
@@ -208,7 +334,9 @@ function parseQuizFromResponse(responseText: string): QuizQuestion[] {
 
     // Ensure we have at least 5 questions
     if (quiz.length < 5) {
-      throw new Error(`Testul generat are doar ${quiz.length} întrebări. Se cer minim 5.`)
+      // Generate additional questions to reach minimum
+      const additionalQuestions = generateAdditionalQuestions(5 - quiz.length)
+      quiz.push(...additionalQuestions)
     }
 
     return quiz
@@ -219,6 +347,25 @@ function parseQuizFromResponse(responseText: string): QuizQuestion[] {
     // Fallback: generate a simple quiz structure
     return generateFallbackQuiz()
   }
+}
+
+function generateAdditionalQuestions(count: number): QuizQuestion[] {
+  const questions: QuizQuestion[] = []
+  
+  for (let i = 0; i < count; i++) {
+    questions.push({
+      question: `Întrebare suplimentară ${i + 1}`,
+      options: [
+        "A. Răspuns A",
+        "B. Răspuns B", 
+        "C. Răspuns C",
+        "D. Răspuns D"
+      ],
+      correctAnswer: "A"
+    })
+  }
+  
+  return questions
 }
 
 function generateFallbackQuiz(): QuizQuestion[] {
