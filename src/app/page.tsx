@@ -193,6 +193,17 @@ function QuizComponent({
   fileName: string | null
   onReset: () => void
 }) {
+  // Add some visual flair to the quiz
+  const getQuestionColor = (index: number) => {
+    const colors = [
+      'from-blue-500 to-purple-600',
+      'from-green-500 to-blue-500', 
+      'from-pink-500 to-orange-500',
+      'from-yellow-500 to-red-500',
+      'from-indigo-500 to-purple-500'
+    ]
+    return colors[index % colors.length]
+  }
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [showAnswers, setShowAnswers] = useState<Record<number, boolean>>({})
   const [score, setScore] = useState<number | null>(null)
@@ -253,7 +264,7 @@ function QuizComponent({
       <div className="space-y-6">
         {quiz.map((question, questionIndex) => (
           <div key={questionIndex} className="card p-6 animate-slide-up">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <h3 className={`text-lg font-semibold mb-4 bg-gradient-to-r ${getQuestionColor(questionIndex)} bg-clip-text text-transparent`}>
               {questionIndex + 1}. {question.question}
             </h3>
             
@@ -287,16 +298,16 @@ function QuizComponent({
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => showCorrectAnswer(questionIndex)}
-                className="btn-secondary text-sm"
+                className="btn-secondary text-sm bg-gradient-to-r from-green-500 to-blue-500 text-white hover:from-green-600 hover:to-blue-600 transition-all duration-200"
                 disabled={showAnswers[questionIndex]}
               >
-                Vezi răspunsul corect
+                ✅ Vezi răspunsul corect
               </button>
               <button
                 onClick={() => resetQuestion(questionIndex)}
-                className="btn-secondary text-sm"
+                className="btn-secondary text-sm bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transition-all duration-200"
               >
-                Mai încearcă o dată
+                🔄 Mai încearcă o dată
               </button>
             </div>
           </div>
@@ -310,14 +321,21 @@ function QuizComponent({
             <div>
               <button
                 onClick={checkAnswers}
-                className="btn-primary"
+                className="btn-primary bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transform transition-all duration-200 hover:scale-105"
               >
-                Verifică răspunsurile
+                🎯 Verifică răspunsurile
               </button>
               {score !== null && (
-                <p className="mt-2 text-lg font-semibold text-gray-900">
-                  Scor: {score}/{quiz.length}
-                </p>
+                <div className="mt-4 p-4 bg-gradient-to-r from-green-100 to-blue-100 rounded-lg border-2 border-green-200">
+                  <p className="text-2xl font-bold text-gray-900 text-center">
+                    🏆 Scor Final: {score}/{quiz.length}
+                  </p>
+                  <p className="text-sm text-gray-600 text-center mt-1">
+                    {score === quiz.length ? 'Excelent! Ai răspuns corect la toate întrebările!' : 
+                     score >= quiz.length * 0.7 ? 'Foarte bine! Continuă să înveți!' : 
+                     'Mai poți! Încearcă din nou pentru a îmbunătăți rezultatul.'}
+                  </p>
+                </div>
               )}
             </div>
             <button

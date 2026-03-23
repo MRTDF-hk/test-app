@@ -141,8 +141,8 @@ export async function POST(request: NextRequest) {
 }
 
 async function generateQuizWithAI(pdfText: string, customInstructions?: string): Promise<QuizQuestion[]> {
-  // If local AI is enabled, use rule-based generation
-  if (USE_LOCAL_AI) {
+  // If local AI is enabled or no API key available, use rule-based generation
+  if (USE_LOCAL_AI || !AI_API_KEY) {
     return generateQuizLocally(pdfText, customInstructions)
   }
 
