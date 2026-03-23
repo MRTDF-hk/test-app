@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pdfParse from 'pdf-parse'
 
-// Free AI API configuration - Multiple options supported
+// AI Configuration - Multiple options supported
 const AI_API_KEY = process.env.OPENROUTER_API_KEY || process.env.HUGGINGFACE_API_KEY || process.env.AI_API_KEY
 
-// Determine which API to use based on available keys
+// Determine which AI method to use
+const USE_LOCAL_AI = process.env.USE_LOCAL_AI === 'true'
+const USE_OPENROUTER = process.env.OPENROUTER_API_KEY && !USE_LOCAL_AI
+const USE_HUGGINGFACE = process.env.HUGGINGFACE_API_KEY && !USE_LOCAL_AI && !USE_OPENROUTER
+
+// API configuration for external AI services
 let AI_API_URL: string
 let AI_MODEL: string
 let AI_HEADERS: Record<string, string>
 
-if (process.env.OPENROUTER_API_KEY) {
+if (USE_OPENROUTER) {
   // OpenRouter API (Recommended - free tier available)
   AI_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
   AI_MODEL = 'mistralai/mistral-7b-instruct:free'
@@ -19,7 +24,7 @@ if (process.env.OPENROUTER_API_KEY) {
     'HTTP-Referer': 'https://localhost:3000',
     'X-Title': 'PDF Quiz Generator'
   }
-} else if (process.env.HUGGINGFACE_API_KEY) {
+} else if (USE_HUGGINGFACE) {
   // HuggingFace Inference API
   AI_API_URL = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2'
   AI_MODEL = 'mistralai/Mistral-7B-Instruct-v0.2'
@@ -32,7 +37,7 @@ if (process.env.OPENROUTER_API_KEY) {
   AI_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
   AI_MODEL = 'mistralai/mistral-7b-instruct:free'
   AI_HEADERS = {
-    'Authorization': `Bearer ${AI_API_KEY}`,
+    'Authorization': `Bearer ${AI_API_KEY || ''}`,
     'Content-Type': 'application/json',
     'HTTP-Referer': 'https://localhost:3000',
     'X-Title': 'PDF Quiz Generator'
@@ -132,6 +137,11 @@ export async function POST(request: NextRequest) {
 }
 
 async function generateQuizWithAI(pdfText: string, customInstructions?: string): Promise<QuizQuestion[]> {
+  // If local AI is enabled, use rule-based generation
+  if (USE_LOCAL_AI) {
+    return generateQuizLocally(pdfText, customInstructions)
+  }
+
   // Build the prompt for the AI with improved instructions
   const instructions = customInstructions 
     ? `Instrucțiuni suplimentare: ${customInstructions}\n\n`
@@ -172,7 +182,7 @@ Important: Respecă EXACT formatul JSON de mai sus. Nu adăuga comentarii sau te
     // Prepare request body based on API type
     let requestBody: any
     
-    if (process.env.OPENROUTER_API_KEY || (!process.env.HUGGINGFACE_API_KEY && AI_API_KEY)) {
+    if (USE_OPENROUTER) {
       // OpenRouter format
       requestBody = {
         model: AI_MODEL,
@@ -220,7 +230,7 @@ Important: Respecă EXACT formatul JSON de mai sus. Nu adăuga comentarii sau te
     // Extract generated text from response based on API type
     let generatedText = ''
     
-    if (process.env.OPENROUTER_API_KEY || (!process.env.HUGGINGFACE_API_KEY && AI_API_KEY)) {
+    if (USE_OPENROUTER) {
       // OpenRouter format
       generatedText = result.choices?.[0]?.message?.content || ''
     } else {
@@ -237,6 +247,108 @@ Important: Respecă EXACT formatul JSON de mai sus. Nu adăuga comentarii sau te
     console.error('Eroare la apelul API AI:', error)
     throw new Error('Eroare la generarea testului cu AI. Vă rugăm să încercați din nou.')
   }
+}
+
+function generateQuizLocally(pdfText: string, customInstructions?: string): QuizQuestion[] {
+  try {
+    // Simple text analysis for question generation
+    const sentences = pdfText.split(/[.!?]+/).filter(s => s.trim().length > 10)
+    const words = pdfText.split(/\s+/).filter(w => w.length > 3)
+    
+    const quiz: QuizQuestion[] = []
+    const usedQuestions = new Set<string>()
+    
+    // Generate questions based on text analysis
+    for (let i = 0; i < Math.min(10, sentences.length); i++) {
+      const sentence = sentences[i].trim()
+      if (sentence.length < 20 || usedQuestions.has(sentence)) continue
+      
+      usedQuestions.add(sentence)
+      
+      // Extract key terms for questions
+      const keyTerms = extractKeyTerms(sentence)
+      const question = generateQuestionFromSentence(sentence, customInstructions)
+      
+      if (question && quiz.length < 5) {
+        const options = generateOptions(keyTerms, sentence)
+        quiz.push({
+          question: question,
+          options: options,
+          correctAnswer: "A"
+        })
+      }
+    }
+    
+    // If we don't have enough questions, use fallback
+    if (quiz.length < 5) {
+      const additionalQuestions = generateAdditionalQuestions(5 - quiz.length)
+      quiz.push(...additionalQuestions)
+    }
+    
+    return quiz
+  } catch (error) {
+    console.error('Eroare la generarea locală:', error)
+    return generateFallbackQuiz()
+  }
+}
+
+function extractKeyTerms(sentence: string): string[] {
+  // Simple keyword extraction
+  const commonWords = ['și', 'cu', 'de', 'la', 'în', 'pe', 'pentru', 'un', 'o', 'ce', 'care', 'este', 'sunt', 'am', 'ai', 'a', 'avem', 'aveți', 'au']
+  const words = sentence.toLowerCase().split(/\s+/)
+  const keyTerms = words
+    .filter(word => word.length > 3 && !commonWords.includes(word))
+    .filter((word, index, arr) => arr.indexOf(word) === index) // Remove duplicates
+    .slice(0, 4)
+  
+  return keyTerms
+}
+
+function generateQuestionFromSentence(sentence: string, customInstructions?: string): string | null {
+  // Simple question generation based on sentence structure
+  const sentenceLower = sentence.toLowerCase()
+  
+  if (sentenceLower.includes('ce este') || sentenceLower.includes('ce reprezintă')) {
+    return `Ce reprezintă ${extractSubject(sentence)}?`
+  } else if (sentenceLower.includes('cine')) {
+    return `Cine este ${extractSubject(sentence)}?`
+  } else if (sentenceLower.includes('unde')) {
+    return `Unde se află ${extractSubject(sentence)}?`
+  } else if (sentenceLower.includes('când')) {
+    return `Când a avut loc ${extractSubject(sentence)}?`
+  } else {
+    return `Care este ${extractSubject(sentence)}?`
+  }
+}
+
+function extractSubject(sentence: string): string {
+  // Simple subject extraction
+  const words = sentence.split(/\s+/)
+  const subjectWords = words.slice(0, Math.min(4, words.length))
+  return subjectWords.join(' ')
+}
+
+function generateOptions(keyTerms: string[], sentence: string): string[] {
+  const options = []
+  
+  // Correct answer (first option)
+  options.push(`A. ${keyTerms[0] || sentence.substring(0, 20)}...`)
+  
+  // Distractors (wrong answers)
+  const distractors = [
+    `B. ${keyTerms[1] || 'Un concept necunoscut'}`,
+    `C. ${keyTerms[2] || 'O idee generală'}`,
+    `D. ${keyTerms[3] || 'Un termen tehnic'}`
+  ]
+  
+  options.push(...distractors)
+  
+  // Ensure we have exactly 4 options
+  while (options.length < 4) {
+    options.push(`${String.fromCharCode(65 + options.length)}. Răspuns suplimentar`)
+  }
+  
+  return options.slice(0, 4)
 }
 
 function parseQuizFromResponse(responseText: string): QuizQuestion[] {
